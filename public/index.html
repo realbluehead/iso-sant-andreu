@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="ca">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Iso Sant Andreu</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --panel-bg: #1d2142;
+    --panel-border: #f4f1e8;
+    --panel-shadow: #0b0d1f;
+    --text: #f4f1e8;
+    --accent: #ffd35a;
+    --muted: #9aa3c7;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #10121f; color: var(--text);
+    font-family: "Press Start 2P", ui-monospace, monospace; font-variant-ligatures: none; }
+  canvas#game { touch-action: none; position: fixed; inset: 0; width: 100vw; height: 100vh; image-rendering: pixelated; cursor: grab; }
+  canvas#game.dragging { cursor: grabbing; }
+  .panel { position: fixed; background: var(--panel-bg); border: 3px solid var(--panel-border);
+    box-shadow: 0 0 0 3px var(--panel-shadow), 4px 4px 0 3px rgba(0,0,0,.35); border-radius: 4px;
+    padding: 10px 12px; font-size: 10px; line-height: 1.7; }
+  #location { top: 16px; left: 16px; max-width: min(460px, calc(100vw - 32px)); }
+  #location .street { color: var(--accent); font-size: 12px; }
+  #clock { font-size: 8px; color: #c9d4ff; margin: -2px 0 6px; }
+  #location .place { color: var(--text); }
+  #online { display: flex; align-items: center; gap: 6px; font-size: 8px; color: #9fd3ff; margin-top: 2px; }
+  #online i { width: 7px; height: 7px; background: #4ade80; box-shadow: 0 0 0 1px #0b0d1f; }
+  #online.offline { color: var(--muted); }
+  #online.offline i { background: #6b7280; }
+  #money { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 6px; font-size: 8px; }
+  #money > span { display: inline-flex; align-items: center; gap: 6px; }
+  #money b { font-weight: normal; font-size: 12px; }
+  #wallet { color: #facc15; }
+  #bank { color: #5eead4; }
+  #money i { width: 14px; height: 14px; box-shadow: 0 0 0 2px #1a1420; flex: none; }
+  #money i.coin { border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fef9c3 0 18%, #facc15 22% 60%, #b45309 64%); }
+  #money i.vault { border-radius: 2px; background: linear-gradient(#0f766e 0 30%, #5eead4 30% 40%, #0f766e 40% 100%); }
+  #wallet.bump, #bank.bump { animation: bump .35s steps(3); }
+  #banner.bank { color: #5eead4; }
+  #banner.zone { color: var(--zone, #ffd35a); border-color: var(--zone, #ffd35a); font-size: 13px; }
+  #banner.beer { color: #fbbf24; }
+  #banner.coffee { color: #d6b38a; }
+  #drunk { display: flex; align-items: center; gap: 8px; margin-top: 5px; font-size: 8px; }
+  #drunk .lbl { color: #fbbf24; }
+  #drunk .bar { flex: 1; min-width: 60px; max-width: 110px; height: 8px; background: #2a1d0a; border: 2px solid #0b0d1f; box-shadow: 0 0 0 1px #f4f1e8;
+    background-image: repeating-linear-gradient(90deg, transparent 0 calc(5% - 1px), rgba(0,0,0,.35) calc(5% - 1px) 5%); }
+  #drunk .bar i { display: block; height: 100%; width: 0; background: #f59e0b; transition: width .3s; }
+  #drunk.high .bar i { background: #fb7185; }
+  #drunk .val { color: var(--text); min-width: 40px; }
+  #drunk.bump { animation: bump .35s steps(3); }
+  #banner.rob { color: #ff6b6b; border-color: #dc2626; }
+  @keyframes bump { 50% { transform: scale(1.25); } }
+  #hp { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 8px; }
+  #hp .lbl { color: #ff8a8a; }
+  #hp .bar { flex: 1; min-width: 90px; max-width: 160px; height: 10px; background: #3a1420; border: 2px solid #0b0d1f; box-shadow: 0 0 0 1px #f4f1e8; }
+  #hp .bar i { display: block; height: 100%; width: 100%; background: #4ade80; box-shadow: inset 0 -3px 0 rgba(0,0,0,.25); transition: width .25s; }
+  #hp.low .bar i { background: #ef4444; animation: pulse .8s steps(2) infinite; }
+  #hp .val { color: var(--text); min-width: 56px; }
+  @keyframes pulse { 50% { opacity: .5; } }
+  body.hurt::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 6;
+    box-shadow: inset 0 0 120px 30px rgba(239,68,68,.65); animation: hurt .45s ease-out forwards; }
+  @keyframes hurt { from { opacity: 1; } to { opacity: 0; } }
+  #banner { position: fixed; left: 50%; top: 22%; transform: translate(-50%, -10px); z-index: 7; pointer-events: none;
+    font-size: 16px; padding: 12px 18px; border: 3px solid var(--panel-border); border-radius: 4px; background: var(--panel-bg);
+    box-shadow: 0 0 0 3px var(--panel-shadow), 4px 4px 0 3px rgba(0,0,0,.35); opacity: 0; transition: opacity .25s, transform .25s;
+    text-align: center; max-width: calc(100vw - 32px); }
+  #banner.show { opacity: 1; transform: translate(-50%, 0); }
+  #banner.heal { color: #4ade80; }
+  #banner.warn { color: #facc15; border-color: #dc2626; font-size: 12px; }
+  @media (max-width: 700px) { #banner { font-size: 12px; } #banner.warn { font-size: 9px; } }
+  #title h1 small.iso { display: block; font-size: .38em; letter-spacing: .6em; color: #8fd3ff; margin-bottom: .3em; }
+  #intro { position: fixed; inset: 0; z-index: 8; display: grid; place-items: center; background: rgba(11,13,31,.6); padding: 16px; }
+  #intro.hidden { display: none; }
+  #intro .panel { position: relative; padding: 18px 20px; width: min(460px, 100%); max-height: calc(100vh - 32px); overflow-y: auto;
+    display: flex; flex-direction: column; gap: 12px; }
+  #intro h2 { margin: 0; font-size: 13px; font-weight: normal; color: var(--accent); text-shadow: 2px 2px 0 #0b0d1f; }
+  #intro ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 9px; }
+  #intro li { font-size: 8px; line-height: 1.7; color: var(--text); display: grid; grid-template-columns: 22px 1fr; gap: 6px; }
+  #intro li > span:first-child { font-size: 14px; line-height: 1; text-align: center; }
+  #intro li b { font-weight: normal; color: var(--accent); }
+  #intro-ok { align-self: center; font: inherit; font-size: 10px; color: #1d2142; background: #ffd35a; border: 3px solid #f4f1e8;
+    border-radius: 4px; padding: 10px 18px; cursor: pointer; }
+  /* Nivell i missions (quests.js), a l'estil del WoW */
+  #level { display: flex; align-items: center; gap: 8px; margin-top: 5px; font-size: 8px; }
+  #level .lbl { color: #c084fc; white-space: nowrap; }
+  #level .lbl b { font-weight: normal; color: #ffd23f; }
+  #level .bar { flex: 1; min-width: 60px; max-width: 110px; height: 8px; background: #241634; border: 2px solid #0b0d1f; box-shadow: 0 0 0 1px #f4f1e8; }
+  #level .bar i { display: block; height: 100%; width: 0; background: linear-gradient(#d8b4fe, #a855f7); transition: width .4s; }
+  #level .val { color: var(--muted); font-size: 7px; }
+  #banner.quest { color: #ffd23f; border-color: #a16207; }
+  #banner.level { color: #ffd23f; border-color: #ffd23f; font-size: 20px; text-shadow: 0 0 12px rgba(255,210,63,.8), 3px 3px 0 #0b0d1f; }
+  #quest-tracker { right: 16px; top: 120px; width: 230px; padding: 8px 10px; cursor: pointer; z-index: 2; background: rgba(29,33,66,.82); }
+  #quest-tracker .head { font-size: 8px; color: #ffd23f; margin-bottom: 6px; display: flex; justify-content: space-between; }
+  #quest-tracker .head small { color: var(--muted); font-size: 6px; }
+  #quest-tracker .list > div { display: flex; flex-direction: column; gap: 3px; margin-bottom: 7px; font-size: 7px; line-height: 1.5; }
+  #quest-tracker .list b { font-weight: normal; color: #ffd23f; font-size: 8px; }
+  #quest-tracker .list .tracked b::before { content: "▸ "; color: #c084fc; }
+  #quest-tracker .list span { color: var(--text); }
+  #quest-tracker .list span.ok { color: #86efac; }
+  #quest-dialog, #quest-log { position: fixed; inset: 0; z-index: 8; display: grid; place-items: center; background: rgba(11,13,31,.45); padding: 16px; }
+  #quest-dialog.hidden, #quest-log.hidden { display: none; }
+  .parchment { width: min(440px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; background: #efe0bd; color: #3a2614;
+    border: 4px solid #6b4426; box-shadow: 0 0 0 3px #1a1420, inset 0 0 30px rgba(120,80,30,.35); border-radius: 4px; padding: 16px 18px;
+    font-family: Georgia, "Times New Roman", serif; font-size: 15px; line-height: 1.5; }
+  .parchment .who { font: 8px "Press Start 2P", monospace; color: #8a5a32; margin-bottom: 6px; }
+  .parchment h3 { margin: 0 0 10px; font: 12px "Press Start 2P", monospace; color: #5a2a0a; }
+  .parchment h4 { margin: 12px 0 4px; font: 9px "Press Start 2P", monospace; color: #5a2a0a; }
+  .parchment p { margin: 0 0 6px; }
+  .parchment ul { margin: 0; padding-left: 20px; }
+  .parchment li.ok { color: #2f7a3a; text-decoration: line-through; }
+  .parchment .rewards { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; }
+  .parchment .rewards b { font: 9px "Press Start 2P", monospace; color: #5a2a0a; width: 100%; }
+  .parchment .rewards .xp { color: #7e22ce; font-weight: bold; }
+  .parchment .rewards .cn { color: #a16207; font-weight: bold; }
+  .parchment .buttons { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; flex-wrap: wrap; }
+  .parchment button { font: 9px "Press Start 2P", monospace; color: #f4f1e8; background: #6b4426; border: 3px solid #3a2614; border-radius: 3px; padding: 9px 12px; cursor: pointer; }
+  .parchment button.primary { background: #a16207; color: #fff7db; }
+  .parchment button:hover { filter: brightness(1.15); }
+  #quest-log .q { border-top: 2px dashed rgba(107,68,38,.4); padding-top: 10px; margin-top: 10px; }
+  #quest-log .q.tracked h4::before { content: "▸ "; color: #7e22ce; }
+  #quest-log .q h4 small { font: italic 12px Georgia, serif; color: #8a5a32; }
+  #quest-log .q p { font-size: 13px; color: #5a4030; }
+  #quest-log .row { display: flex; gap: 8px; align-items: center; margin-top: 8px; font-size: 13px; }
+  #quest-log .row span { margin-right: auto; color: #7e22ce; font-weight: bold; }
+  #quest-log .row button { font-size: 7px; padding: 6px 8px; }
+  #quest-log .lvl { font: 8px "Press Start 2P", monospace; color: #7e22ce; }
+  #quest-log .empty { font-style: italic; }
+  body.touch #quest-tracker { right: auto; left: calc(12px + env(safe-area-inset-left)); top: auto; bottom: calc(190px + env(safe-area-inset-bottom)); width: min(200px, 52vw); padding: 6px 8px; }
+  body.touch #quest-tracker .list > div:not(.tracked) { display: none; }
+  body.indoors #quest-tracker { display: none; }
+  #death { position: fixed; inset: 0; z-index: 8; display: grid; place-items: center; background: rgba(40,4,12,.72); padding: 16px; }
+  #death .panel { position: relative; text-align: center; padding: 22px 26px; display: flex; flex-direction: column; gap: 14px; align-items: center; }
+  #death h2 { margin: 0; font-size: 22px; font-weight: normal; color: #ff4d4d; text-shadow: 3px 3px 0 #0b0d1f; }
+  #death p { margin: 0; font-size: 9px; color: var(--muted); line-height: 1.8; }
+  #revive-btn { font: inherit; font-size: 11px; padding: 12px 16px; color: #1d2142; background: var(--accent);
+    border: 3px solid var(--panel-border); border-radius: 3px; cursor: pointer; box-shadow: inset -3px -3px 0 #c99a2a; }
+  #revive-btn:hover, #revive-btn:focus-visible { background: #ffe08a; outline: none; }
+  #minimap-wrap { right: 16px; bottom: 34px; padding: 6px; }
+  #minimap { display: block; image-rendering: pixelated; cursor: help; }
+  #minimap-wrap .title { font-size: 8px; color: var(--muted); margin-bottom: 4px; text-align: center; }
+  #help { left: 16px; bottom: 34px; font-size: 8px; line-height: 2; }
+  #help b { color: var(--accent); font-weight: normal; }
+  #attribution { position: fixed; right: 8px; bottom: 6px; font: 11px system-ui, sans-serif; color: #c9cbe0;
+    background: rgba(16,18,31,.7); padding: 2px 6px; border-radius: 3px; }
+  #attribution a { color: #c9cbe0; }
+  #title { position: fixed; inset: 0; z-index: 11; display: grid; place-items: center; background: #1b1d4a; overflow: hidden; }
+  #title-art { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; object-fit: cover; }
+  .title-box { position: relative; text-align: center; padding: 16px; margin-top: -18vh; }
+  #title h1 { margin: 0; font-size: clamp(28px, 8vw, 72px); font-weight: normal; letter-spacing: 2px; color: #ffd35a;
+    text-shadow: 0 4px 0 #c0392b, 0 8px 0 #1a1420, 4px 4px 0 #1a1420, -4px 4px 0 #1a1420; }
+  #title .subtitle { margin: 18px 0 26px; font-size: clamp(8px, 2vw, 12px); color: #fff3e0; text-shadow: 2px 2px 0 #1a1420; }
+  .title-actions { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  #title-guest { font: inherit; font-size: 11px; color: #1d2142; background: #ffd35a; border: 3px solid #f4f1e8; border-radius: 4px;
+    padding: 12px 18px; cursor: pointer; box-shadow: 0 0 0 3px #1a1420, inset -3px -3px 0 #c99a2a; }
+  #title-guest:hover { background: #ffe08a; }
+  .title-hint { margin-top: 20px; font-size: 8px; color: #fff3e0; text-shadow: 2px 2px 0 #1a1420; animation: blink 1.2s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  #auth-status { font-size: 7px; color: var(--muted); line-height: 1.6; }
+  #auth-out { font: inherit; font-size: 8px; color: var(--text); background: #2c3266; border: 2px solid #4a5196; border-radius: 3px; padding: 6px 8px; cursor: pointer; }
+  #loading { position: fixed; inset: 0; display: grid; place-items: center; background: #10121f; z-index: 10; font-size: 12px; }
+  .hidden { display: none !important; }
+  #toast { top: 16px; left: 50%; transform: translateX(-50%); font-size: 10px; transition: opacity .3s; }
+  #zoom { top: 16px; right: 16px; display: flex; align-items: center; gap: 10px; padding: 6px; }
+  #zoom button { font: inherit; font-size: 14px; width: 34px; height: 34px; color: var(--text); background: #2c3266;
+    border: 2px solid var(--panel-border); border-radius: 3px; cursor: pointer; box-shadow: inset -2px -2px 0 #161a3a; padding: 0; }
+  #zoom button:hover:not(:disabled) { background: #3b4285; color: var(--accent); }
+  #zoom button:active:not(:disabled) { box-shadow: inset 2px 2px 0 #161a3a; }
+  #zoom button:disabled { opacity: .35; cursor: default; }
+  #zoom-level { min-width: 52px; text-align: center; font-size: 11px; color: var(--accent); }
+  #zoom-level small { display: block; font-size: 7px; color: var(--muted); margin-bottom: 3px; }
+  #avatar-btn { top: 78px; right: 16px; font: inherit; font-size: 10px; color: var(--text); cursor: pointer; padding: 9px 12px; }
+  #avatar-btn:hover { color: var(--accent); }
+  #music-btn { position: static; font: inherit; font-size: 8px; color: var(--text); cursor: pointer; padding: 8px 10px; align-self: flex-start;
+    background: #2c3266; border: 2px solid #4a5196; border-radius: 3px; box-shadow: none;
+    display: flex; align-items: center; gap: 8px; }
+  #music-btn:hover { color: var(--accent); }
+  #music-btn i { width: 10px; height: 10px; background: #4ade80; box-shadow: 0 0 0 2px #0b0d1f; }
+  #music-btn.off { color: var(--muted); }
+  #music-btn.off i { background: #6b7280; }
+  #avatar-panel { position: fixed; inset: 0; z-index: 5; display: grid; place-items: center; background: rgba(8,9,20,.55); padding: 16px; }
+  #avatar-panel .panel { position: relative; width: min(620px, 100%); max-height: calc(100vh - 32px); overflow-y: auto;
+    display: grid; grid-template-columns: 180px 1fr; gap: 18px; padding: 16px; }
+  #avatar-panel h2 { grid-column: 1 / -1; margin: 0; font-size: 13px; font-weight: normal; color: var(--accent); }
+  #avatar-side { display: flex; flex-direction: column; gap: 12px; }
+  #avatar-preview { width: 180px; height: 190px; image-rendering: pixelated; background:
+    repeating-conic-gradient(#2a3060 0 25%, #252a55 0 50%) 0 0 / 24px 24px; border: 2px solid #3b4285; border-radius: 3px; }
+  #avatar-side label { font-size: 8px; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }
+  #avatar-name { font: inherit; font-size: 10px; padding: 8px; color: var(--text); background: #11142c; border: 2px solid var(--panel-border); border-radius: 3px; width: 100%; }
+  #avatar-name:focus { outline: none; border-color: var(--accent); }
+  #avatar-fields { display: flex; flex-direction: column; gap: 12px; }
+  #avatar-fields .label { font-size: 8px; color: var(--muted); margin-bottom: 6px; }
+  .swatches, .choices { display: flex; flex-wrap: wrap; gap: 6px; }
+  .swatches button { width: 24px; height: 24px; border: 2px solid #0b0d1f; border-radius: 3px; cursor: pointer; padding: 0; box-shadow: inset -2px -2px 0 rgba(0,0,0,.25); }
+  .swatches button.selected { outline: 3px solid var(--accent); outline-offset: 1px; }
+  .choices button, .avatar-actions button { font: inherit; font-size: 8px; padding: 7px 8px; color: var(--text); background: #2c3266;
+    border: 2px solid #4a5196; border-radius: 3px; cursor: pointer; }
+  .choices button:hover, .avatar-actions button:hover { border-color: var(--panel-border); }
+  .choices button.selected { background: var(--accent); color: #1d2142; border-color: var(--accent); }
+  .avatar-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+  #avatar-done { background: var(--accent); color: #1d2142; border-color: var(--accent); }
+  @media (max-width: 560px) {
+    #avatar-panel .panel { grid-template-columns: 1fr; }
+    #avatar-side { align-items: center; }
+    #music-btn { align-self: center; }
+  }
+  /* Controls tàctils (només a mòbil / tauleta) */
+  .touch-only { display: none !important; }
+  body.touch .touch-only { display: flex !important; }
+  body.touch { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  /* Safari d'iOS no deixa escriure en camps amb user-select: none heretat */
+  body.touch input { -webkit-user-select: text; user-select: text; }
+  body.touch #help, body.touch .key-hint { display: none; }
+  #joystick { position: fixed; left: calc(24px + env(safe-area-inset-left)); bottom: calc(40px + env(safe-area-inset-bottom));
+    width: 132px; height: 132px; border-radius: 50%; align-items: center; justify-content: center; touch-action: none;
+    background: rgba(29,33,66,.55); border: 3px solid rgba(244,241,232,.7); box-shadow: 0 0 0 3px rgba(11,13,31,.5); z-index: 3; }
+  #joystick::before { content: ""; position: absolute; inset: 16px; border-radius: 50%; border: 2px dashed rgba(244,241,232,.25); }
+  #joystick .knob { width: 56px; height: 56px; border-radius: 50%; background: #f4f1e8; border: 3px solid #0b0d1f;
+    box-shadow: inset -4px -4px 0 #b9b4a6; pointer-events: none; }
+  #joystick.active .knob { background: var(--accent); box-shadow: inset -4px -4px 0 #c99a2a; }
+  .touch-btn { position: fixed; font: inherit; color: var(--text); background: var(--panel-bg); border: 3px solid var(--panel-border);
+    box-shadow: 0 0 0 3px var(--panel-shadow); border-radius: 4px; align-items: center; justify-content: center; touch-action: manipulation; z-index: 3; }
+  .touch-btn.active { background: var(--accent); color: #1d2142; }
+  /* accions en dues columnes just a sobre del botó de córrer */
+  #touch-actions { position: fixed; right: calc(12px + env(safe-area-inset-right)); bottom: calc(44px + env(safe-area-inset-bottom));
+    flex-direction: column; align-items: flex-end; gap: 8px; z-index: 3; pointer-events: none; }
+  #touch-actions .grid { display: grid; grid-template-columns: repeat(2, 54px); gap: 5px; }
+  #touch-actions .touch-btn { position: static; pointer-events: auto; font-size: 6px; width: 54px; height: 28px; padding: 0;
+    border-width: 2px; box-shadow: 0 0 0 2px var(--panel-shadow); }
+  #touch-actions .touch-btn.dim { opacity: .45; }
+  #touch-actions #run-btn { width: 60px; height: 60px; border-radius: 50%; font-size: 7px; align-self: flex-end; margin-right: 24px; }
+  #enter-hint { left: 50%; bottom: 132px; transform: translateX(-50%); font-size: 9px; color: #ffd35a; padding: 6px 10px; z-index: 3; }
+  body.touch #enter-hint { bottom: auto; top: 52%; }
+  body.indoors #minimap-wrap, body.indoors #bike-hint, body.indoors #map-btn { display: none !important; }
+  #bike-hint { left: 50%; bottom: 96px; transform: translateX(-50%); font-size: 9px; color: #ff8a80; padding: 6px 10px; z-index: 3; }
+  body.touch #bike-hint { bottom: auto; top: 45%; }
+  #chat { left: 50%; bottom: 40px; transform: translateX(-50%); width: min(420px, calc(100vw - 32px)); display: flex; align-items: center; gap: 8px; padding: 8px 10px; z-index: 4; }
+  #chat.hidden { display: none; }
+  #chat label { font-size: 8px; color: var(--accent); white-space: nowrap; }
+  #chat-input { flex: 1; min-width: 0; font: inherit; font-size: 10px; padding: 8px; color: var(--text); background: #11142c;
+    border: 2px solid var(--panel-border); border-radius: 3px; }
+  #chat-input:focus { outline: none; border-color: var(--accent); }
+  #chat-count { font-size: 8px; color: var(--muted); min-width: 36px; text-align: right; }
+  body.touch #chat { bottom: auto; top: 35%; }
+  #chat-log { position: fixed; left: 16px; bottom: 150px; width: min(340px, calc(100vw - 32px)); display: flex; flex-direction: column;
+    gap: 4px; pointer-events: none; z-index: 2; }
+  #chat-log .msg { font-size: 8px; line-height: 1.6; padding: 4px 8px; background: rgba(11,13,31,.72); color: var(--text);
+    border-left: 3px solid #9fd3ff; border-radius: 2px; transition: opacity 1s; overflow-wrap: anywhere; }
+  #chat-log .msg b { font-weight: normal; color: #9fd3ff; }
+  #chat-log .msg.mine { border-left-color: var(--accent); }
+  #chat-log .msg.mine b { color: var(--accent); }
+  #chat-log .msg.old { opacity: 0; }
+  body.touch #chat-log { bottom: 200px; }
+  body.touch #minimap-wrap { bottom: auto; top: 108px; transform: scale(.75); transform-origin: top right; }
+  body.touch #zoom { top: 12px; right: 12px; gap: 4px; padding: 3px; }
+  body.touch #zoom button { width: 26px; height: 26px; font-size: 11px; }
+  body.touch #zoom-level { min-width: 30px; font-size: 8px; }
+  body.touch #zoom-level small { display: none; }
+  body.touch #avatar-btn { top: 56px; right: 12px; font-size: 7px; padding: 7px 9px; }
+  @media (max-width: 700px) {
+    #help { display: none; }
+    /* panell d'informació a l'esquerra i columna de botons a la dreta */
+    #location { max-width: calc(100vw - 168px); padding: 8px 10px; font-size: 7px; }
+    #location .place { font-size: 7px; }
+    #hp .bar, #drunk .bar { min-width: 40px; }
+    #hp .lbl, #drunk .lbl { display: none; }
+    #money b { font-size: 10px; }
+    #zoom { top: 16px; gap: 6px; }
+    #avatar-btn { top: 72px; }
+    body.touch #avatar-btn { top: 52px; }
+    body.touch #minimap-wrap { top: 96px; }
+    #location .street { font-size: 10px; }
+      #minimap-wrap { transform: scale(.7); transform-origin: bottom right; }
+    body.touch #minimap-wrap { transform: scale(.6); transform-origin: top right; }
+    #zoom button { width: 30px; height: 30px; }
+    body.touch #zoom button { width: 26px; height: 26px; }
+    #avatar-btn { font-size: 8px; padding: 8px 10px; }
+    body.touch #avatar-btn { font-size: 7px; padding: 7px 9px; }
+    body.touch #location { max-width: calc(100vw - 130px); }
+  }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="location" class="panel">
+  <div id="clock">…</div>
+  <div id="location-text"><div class="street">…</div><div class="place"></div><div class="meta"></div></div>
+  <div id="online" class="offline"><i></i><span>Connectant…</span></div>
+  <div id="hp"><span class="lbl">VIDA</span><div class="bar"><i></i></div><span class="val">100/100</span></div>
+  <div id="drunk" title="Embriaguesa: puja amb cerveses als bars, baixa amb cafès"><span class="lbl">EMBRIAGUESA</span><div class="bar"><i></i></div><span class="val">0/20</span></div>
+  <div id="level" title="Nivell i experiència: completa missions per pujar"><span class="lbl">NIVELL <b>1</b></span><div class="bar"><i></i></div><span class="val">0/100</span></div>
+  <div id="money">
+    <span id="wallet" title="Monedes que portes a sobre (te les poden robar)"><i class="coin"></i>A sobre <b>0</b></span>
+    <span id="bank" title="Monedes assegurades al banc"><i class="vault"></i>Banc <b>0</b></span>
+  </div>
+</div>
+<div id="minimap-wrap" class="panel"><div class="title">SANT ANDREU DE PALOMAR</div><canvas id="minimap"></canvas></div>
+<div id="help" class="panel">
+  <b>FLETXES / WASD</b> caminar · <b>SHIFT</b> córrer<br>
+  <b>+ / −</b> o roda: zoom · arrossega: moure càmera<br>
+  <b>C</b> centrar · <b>M</b> minimapa · <b>L</b> rètols<br>
+  <b>O</b> entrar / parlar · <b>J</b> missions · <b>ESPAI</b> saltar · <b>ENTER</b> parlar · <b>R</b> bici · <b>N</b> fantasma · <b>P</b> opcions · <b>B</b> música · <b>H</b> ajuda
+</div>
+<div id="zoom" class="panel">
+  <button id="zoom-out" type="button" aria-label="Allunyar">−</button>
+  <div id="zoom-level"><small>ZOOM</small><span>×3</span></div>
+  <button id="zoom-in" type="button" aria-label="Apropar">+</button>
+</div>
+<button id="avatar-btn" class="panel" type="button">OPCIONS<span class="key-hint"> (P)</span></button>
+<div id="avatar-panel" class="hidden" role="dialog" aria-modal="true" aria-labelledby="avatar-title">
+  <div class="panel">
+    <h2 id="avatar-title">OPCIONS</h2>
+    <div id="avatar-side">
+      <canvas id="avatar-preview" width="180" height="190"></canvas>
+      <label>Nom<input id="avatar-name" maxlength="16" autocomplete="off" spellcheck="false"></label>
+      <div class="avatar-actions">
+        <button id="avatar-random" type="button">Aleatori</button>
+        <button id="avatar-reset" type="button">Restablir</button>
+        <button id="avatar-done" type="button">Fet</button>
+      </div>
+      <button id="music-btn" type="button" aria-pressed="true"><i></i><span>Música: sí</span><span class="key-hint">(B)</span></button>
+      <div id="auth-status">Jugant com a convidat</div>
+      <button id="auth-out" class="hidden" type="button">Tanca la sessió</button>
+    </div>
+    <div id="avatar-fields"></div>
+  </div>
+</div>
+<div id="joystick" class="touch-only" aria-label="Joystick per moure el personatge"><div class="knob"></div></div>
+<div id="touch-actions" class="touch-only">
+  <div class="grid">
+    <button id="enter-btn" class="touch-btn touch-only dim" type="button">ENTRA</button>
+    <button id="jump-btn" class="touch-btn touch-only" type="button">SALTA</button>
+    <button id="bike-btn" class="touch-btn touch-only dim" type="button">BICI</button>
+    <button id="chat-btn" class="touch-btn touch-only" type="button">XAT</button>
+    <button id="map-btn" class="touch-btn touch-only" type="button">MAPA</button>
+    <button id="center-btn" class="touch-btn touch-only" type="button">CENTRAR</button>
+    <button id="quests-btn" class="touch-btn touch-only" type="button">MISSIONS</button>
+  </div>
+  <button id="run-btn" class="touch-btn touch-only" type="button" aria-pressed="false">Córrer</button>
+</div>
+<div id="enter-hint" class="panel hidden"></div>
+<div id="bike-hint" class="panel hidden">R: agafar una bici</div>
+<div id="chat-log" aria-live="polite"></div>
+<form id="chat" class="panel hidden" autocomplete="off">
+  <label for="chat-input">DIR:</label>
+  <input id="chat-input" maxlength="30" enterkeyhint="send" spellcheck="false" placeholder="Escriu un missatge…">
+  <span id="chat-count">0/30</span>
+</form>
+<div id="quest-tracker" class="panel hidden" title="Obre el diari de missions (J)">
+  <div class="head"><span>MISSIONS</span><small>J: diari</small></div>
+  <div class="list"></div>
+</div>
+<div id="quest-dialog" class="hidden" role="dialog" aria-modal="true">
+  <div class="parchment">
+    <div class="who"></div>
+    <h3></h3>
+    <div class="body"></div>
+    <div class="buttons"></div>
+  </div>
+</div>
+<div id="quest-log" class="hidden" role="dialog" aria-modal="true" aria-label="Diari de missions">
+  <div class="parchment">
+    <h3>DIARI DE MISSIONS</h3>
+    <div class="lvl"></div>
+    <div class="list"></div>
+    <div class="buttons"><button class="primary" data-close>Tancar</button></div>
+  </div>
+</div>
+<div id="intro" class="hidden" role="dialog" aria-modal="true" aria-labelledby="intro-title">
+  <div class="panel">
+    <h2 id="intro-title">BENVINGUT/DA A SANT ANDREU!</h2>
+    <ul id="intro-list"></ul>
+    <button id="intro-ok" type="button">SOM-HI!</button>
+  </div>
+</div>
+<div id="death" class="hidden" role="alertdialog" aria-modal="true" aria-labelledby="death-title">
+  <div class="panel">
+    <h2 id="death-title">HAS MORT</h2>
+    <p id="death-text">Un ciclista t'ha atropellat.<br>Compte amb els carrils bici!</p>
+    <button id="revive-btn" type="button">RESSUSCITAR</button>
+  </div>
+</div>
+<div id="banner" role="status" aria-live="polite"></div>
+<div id="toast" class="panel hidden"></div>
+<div id="attribution">Dades © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a> (ODbL) ·
+  <a href="https://opendata-ajuntament.barcelona.cat/data/ca/dataset/cens-locals-planta-baixa-act-economica" target="_blank" rel="noopener">Ajuntament de Barcelona</a> (CC-BY) ·
+  <a href="https://overturemaps.org" target="_blank" rel="noopener">Overture Maps Foundation</a></div>
+<div id="loading">Carregant Sant Andreu…</div>
+<div id="title">
+  <canvas id="title-art"></canvas>
+  <div class="title-box">
+    <h1><small class="iso">ISO</small>SANT ANDREU</h1>
+    <p class="subtitle">Sant Andreu de Palomar en isomètric</p>
+    <div class="title-actions">
+      <div id="title-google"></div>
+      <button id="title-guest" type="button">Jugar com a convidat</button>
+    </div>
+    <p class="title-hint">Prem ENTER per començar</p>
+  </div>
+</div>
+<!-- ordre de càrrega: core i els fitxers base, després els sistemes (s'enganxen amb addSystem) -->
+<script src="core.js?v=1"></script>
+<script src="tiles.js?v=1"></script>
+<script src="sprites.js?v=1"></script>
+<script src="themes.js?v=1"></script>
+<script src="roofs.js?v=1"></script>
+<script src="iso.js?v=1"></script>
+<script src="game.js?v=1"></script>
+<script src="chat.js?v=1"></script>
+<script src="avatar.js?v=1"></script>
+<script src="net.js?v=1"></script>
+<script src="hud.js?v=1"></script>
+<script src="input.js?v=1"></script>
+<script src="world.js?v=1"></script>
+<script src="npcs.js?v=1"></script>
+<script src="pois.js?v=1"></script>
+<script src="animals.js?v=1"></script>
+<script src="coins.js?v=1"></script>
+<script src="thieves.js?v=1"></script>
+<script src="spooky.js?v=1"></script>
+<script src="bicing.js?v=1"></script>
+<script src="interior.js?v=1"></script>
+<script src="title.js?v=1"></script>
+<script src="drinks.js?v=1"></script>
+<script src="music.js?v=1"></script>
+<script src="fog.js?v=1"></script>
+<script src="quests.js?v=1"></script>
+<script src="intro.js?v=1"></script>
+</body>
+</html>
